@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نظام متابعة حضور التلاميذ - ثانوية الشهيد روام خليفة</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#15803d',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    },
+                    fontFamily: {
+                        arabic: ['Cairo', 'Segoe UI', 'Tahoma', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code Generator Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- HTML5 QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+        }
+
+        /* Printable Student Badges CSS */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printArea, #printArea * {
+                visibility: visible;
+            }
+            #printArea {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white;
+                padding: 5px;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Full Screen / Camera Flashes */
+        @keyframes flashRedAnim {
+            0% { background-color: rgba(239, 68, 68, 0.75); }
+            50% { background-color: rgba(220, 38, 38, 0.95); }
+            100% { background-color: rgba(239, 68, 68, 0); }
+        }
+        .flash-red {
+            animation: flashRedAnim 0.65s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        @keyframes flashGreenAnim {
+            0% { background-color: rgba(34, 197, 94, 0.7); }
+            50% { background-color: rgba(22, 163, 74, 0.9); }
+            100% { background-color: rgba(34, 197, 94, 0); }
+        }
+        .flash-green {
+            animation: flashGreenAnim 0.65s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        /* Glowing Camera Borders */
+        .border-glow-red {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 25px #ef4444, inset 0 0 15px #ef4444 !important;
+        }
+        .border-glow-green {
+            border-color: #22c55e !important;
+            box-shadow: 0 0 25px #22c55e, inset 0 0 15px #22c55e !important;
+        }
+        .border-glow-amber {
+            border-color: #f59e0b !important;
+            box-shadow: 0 0 25px #f59e0b, inset 0 0 15px #f59e0b !important;
+        }
+
+        /* Laser Scan Line Animation */
+        @keyframes scanLaser {
+            0% { top: 8%; opacity: 0.3; }
+            50% { top: 90%; opacity: 1; }
+            100% { top: 8%; opacity: 0.3; }
+        }
+        .laser-line {
+            position: absolute;
+            left: 5%;
+            width: 90%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #22c55e, #86efac, #22c55e, transparent);
+            box-shadow: 0 0 14px #22c55e;
+            animation: scanLaser 1.8s infinite ease-in-out;
+        }
+
+        /* Shake animation for error banner */
+        @keyframes shakeHard {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-6px); }
+            80% { transform: translateX(6px); }
+        }
+        .shake-banner {
+            animation: shakeHard 0.45s ease-in-out;
+        }
+
+        /* Pop animation for verification card */
+        @keyframes popCardIn {
+            0% { transform: scale(0.92); opacity: 0; }
+            70% { transform: scale(1.02); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-card {
+            animation: popCardIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .touch-action-btn {
+            touch-action: manipulation;
+        }
+
+        .mobile-bottom-space {
+            padding-bottom: calc(5.2rem + env(safe-area-inset-bottom, 0px));
+        }
+
+        #qr-reader img[alt="Info icon"] { display: none !important; }
+        #qr-reader__scan_region video {
+            object-fit: cover !important;
+            border-radius: 1rem;
+        }
+    </style>
+</head>
+<body class="text-slate-100 bg-slate-900 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Screen Flash Overlay -->
+    <div id="screenFlash" class="fixed inset-0 pointer-events-none z-50"></div>
+
+    <!-- Top Navbar -->
+    <header class="bg-slate-950/90 backdrop-blur border-b border-slate-800 text-white sticky top-0 z-40 no-print">
+        <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 flex justify-between items-center gap-2">
+            <!-- School Info -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-user-check text-lg sm:text-xl text-emerald-400"></i>
+                </div>
+                <div class="truncate">
+                    <h1 class="text-xs sm:text-base font-extrabold tracking-tight truncate leading-tight text-white">ثانوية الشهيد روام خليفة</h1>
+                    <p class="text-[10px] sm:text-xs text-emerald-400 font-semibold truncate">نظام التحقق الحضوري اليدوي للمشرف</p>
+                </div>
+            </div>
+
+            <!-- Quick Global Actions -->
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="toggleAudio()" id="soundBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-white w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-slate-700 transition flex items-center justify-center text-xs touch-action-btn" title="الصوت">
+                    <i id="soundIcon" class="fa-solid fa-volume-high text-emerald-400"></i>
+                </button>
+                <button onclick="quickBackupData()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-white px-2.5 py-1.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 text-xs touch-action-btn">
+                    <i class="fa-solid fa-download text-emerald-400"></i>
+                    <span class="hidden sm:inline">نسخ احتياطي</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Desktop Navigation Tabs -->
+        <nav class="bg-slate-900 border-t border-slate-800/80 px-4 hidden md:block">
+            <div class="max-w-5xl mx-auto flex gap-2 py-1.5 text-xs font-bold">
+                <button onclick="switchTab('liveScanTab')" id="desk-liveScanTab" class="nav-tab px-4 py-2 rounded-xl transition flex items-center gap-2 bg-emerald-600 text-white shadow-sm">
+                    <i class="fa-solid fa-camera"></i>
+                    شاشة المسح والتحقق
+                </button>
+                <button onclick="switchTab('attendanceTab')" id="desk-attendanceTab" class="nav-tab px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    سجل الحضور اليومي
+                    <span id="deskAttendanceCount" class="bg-emerald-500/20 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30">0</span>
+                </button>
+                <button onclick="switchTab('cardsTab')" id="desk-cardsTab" class="nav-tab px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-id-card"></i>
+                    بطاقات الـ QR (162)
+                </button>
+                <button onclick="switchTab('studentsTab')" id="desk-studentsTab" class="nav-tab px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2">
+                    <i class="fa-solid fa-users"></i>
+                    القوائم المدرسية
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-5xl mx-auto px-2.5 sm:px-6 py-2.5 sm:py-3.5 flex-1 w-full no-print mobile-bottom-space">
+
+        <!-- ================= TAB 1: VERIFICATION & CAMERA SCREEN ================= -->
+        <section id="liveScanTab" class="tab-content block space-y-2.5 sm:space-y-3">
+            
+            <!-- Classroom Selector & Status -->
+            <div class="bg-slate-800/90 rounded-2xl p-2.5 sm:p-3 border border-slate-700/80 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+                <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+                    <span class="text-xs font-bold text-slate-300 shrink-0 flex items-center gap-1.5">
+                        <i class="fa-solid fa-chalkboard-user text-emerald-400"></i>
+                        فوج الحصة:
+                    </span>
+                    <select id="classroomSelect" onchange="onClassFilterChange()" class="flex-1 bg-slate-900 border border-slate-700 font-bold text-white text-xs sm:text-sm rounded-xl py-2 px-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="ALL">🌐 مفتوح لجميع الأفواج (بدون تقييد)</option>
+                        <option value="أولى جذع مشترك علوم 3">قسم: أولى جذع مشترك علوم 3 (41 تلميذ)</option>
+                        <option value="أولى جذع مشترك علوم 4">قسم: أولى جذع مشترك علوم 4 (40 تلميذ)</option>
+                        <option value="أولى جذع مشترك علوم 5">قسم: أولى جذع مشترك علوم 5 (40 تلميذ)</option>
+                        <option value="أولى جذع مشترك أداب 3">قسم: أولى جذع مشترك أداب 3 (41 تلميذ)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span id="sessionCounter" class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-3 py-1.5 rounded-xl font-mono font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-user-check"></i> <span id="sessionCountNum">0</span> مسجل
+                    </span>
+                    <button onclick="toggleCameraFace()" class="touch-action-btn bg-slate-700 hover:bg-slate-600 text-white text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1 border border-slate-600">
+                        <i class="fa-solid fa-camera-rotate text-emerald-400"></i>
+                        <span id="facingLabel" class="hidden sm:inline">الخلفية</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- HUGE STATUS BANNER RIGHT ABOVE CAMERA -->
+            <div id="cameraTopBanner" class="w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border shadow-lg bg-slate-800 border-slate-700 text-slate-300">
+                <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                    <i class="fa-solid fa-bullseye text-emerald-400 animate-pulse text-base"></i>
+                    <span>وجّه الكاميرا نحو بطاقة الـ QR.. ستظهر نافذة التأكيد مكان الكاميرا فوراً</span>
+                </div>
+            </div>
+
+            <!-- COMPACT CAMERA VIEWPORT WITH FULL OVERLAY POPUP -->
+            <div class="relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-700 transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center" id="cameraViewportContainer">
+                
+                <!-- HTML5 Scanner Reader Hook -->
+                <div id="qr-reader" class="w-full h-full"></div>
+
+                <!-- Laser Scan Box Overlay -->
+                <div id="scannerAimOverlay" class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div id="scannerReticleBox" class="w-40 h-40 sm:w-52 sm:h-52 border-2 border-emerald-400 rounded-3xl relative flex items-center justify-center transition-all duration-200">
+                        <div class="laser-line" id="reticleLaser"></div>
+                        <div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-2xl"></div>
+                        <div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-2xl"></div>
+                        <div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-2xl"></div>
+                        <div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-2xl"></div>
+                    </div>
+                </div>
+
+                <!-- FULL CAMERA OVERLAY POPUP: SUPERVISOR CONFIRMATION MODAL -->
+                <div id="cameraVerificationModal" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-30 p-3 sm:p-4 flex flex-col justify-between hidden pop-card">
+                    
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <div id="vMatchTag" class="text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1.5"></div>
+                        <div class="flex items-center gap-1 text-[11px] text-slate-300 font-mono">
+                            <i class="fa-regular fa-clock text-emerald-400"></i>
+                            <span id="vCurrentScanTime" class="font-bold bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-700"></span>
+                        </div>
+                    </div>
+
+                    <!-- Student Info Center Body -->
+                    <div class="flex items-center gap-3 my-auto py-1">
+                        <!-- Student Photo -->
+                        <div class="relative group shrink-0 text-center">
+                            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-slate-600 bg-slate-900 shadow-md flex items-center justify-center relative">
+                                <img id="vStudentPhotoImg" src="" alt="صورة التلميذ" class="w-full h-full object-cover hidden">
+                                <div id="vStudentPhotoFallback" class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-emerald-400 font-black text-2xl sm:text-3xl">
+                                    <span id="vAvatarLetter">ت</span>
+                                    <span class="text-[8px] font-sans text-slate-400 font-normal mt-0.5">صورة مدرسية</span>
+                                </div>
+                            </div>
+                            <label class="mt-1 inline-block text-[9px] text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded cursor-pointer border border-slate-700">
+                                <i class="fa-solid fa-camera"></i> صورة
+                                <input type="file" accept="image/*" class="hidden" onchange="uploadStudentPhoto(event)">
+                            </label>
+                        </div>
+
+                        <!-- Details Text -->
+                        <div class="flex-1 min-w-0 text-right space-y-1">
+                            <div class="flex items-center justify-between gap-1">
+                                <h2 id="vStudentName" class="text-base sm:text-xl font-black text-white leading-tight truncate">اسم ولقب التلميذ</h2>
+                                <span id="vStudentId" class="text-[10px] sm:text-xs font-mono font-bold text-emerald-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 shrink-0">STU-001</span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                <span id="vStudentClass" class="text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-lg">القسم</span>
+                                <span id="vStudentRepeat" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-300"></span>
+                                <span id="vStudentType" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300"></span>
+                            </div>
+
+                            <div class="text-[10px] sm:text-[11px] text-slate-300 font-semibold flex items-center gap-1 truncate">
+                                <i class="fa-solid fa-cake-candles text-slate-400 text-[10px]"></i>
+                                <span id="vStudentBirth" class="truncate">الميلاد: غير محدد</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warning Area (Mismatch / Duplication) -->
+                    <div id="vWarningNoticeBox" class="hidden rounded-xl p-2 text-[11px] font-bold border my-1"></div>
+
+                    <!-- Action Buttons: CONFIRM or CANCEL (STAYS VISIBLE UNTIL CLICKED) -->
+                    <div id="vActionButtonsRow" class="grid grid-cols-2 gap-2 pt-1">
+                        <button id="btnConfirmAttendance" onclick="confirmStudentAttendance()" class="touch-action-btn bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 active:scale-95 text-white font-black py-2.5 sm:py-3 px-2 rounded-xl shadow-lg flex items-center justify-center gap-1.5 text-xs sm:text-sm border border-emerald-400/50">
+                            <i class="fa-solid fa-circle-check text-base"></i>
+                            <span>تأكيد الحضور (تم) ✅</span>
+                        </button>
+
+                        <button id="btnCancelAttendance" onclick="cancelStudentAttendance()" class="touch-action-btn bg-gradient-to-r from-rose-700 to-red-700 hover:from-rose-600 active:scale-95 text-white font-black py-2.5 sm:py-3 px-2 rounded-xl shadow-lg flex items-center justify-center gap-1.5 text-xs sm:text-sm border border-rose-400/50">
+                            <i class="fa-solid fa-circle-xmark text-base"></i>
+                            <span>إلغاء / ليس هو ❌</span>
+                        </button>
+                    </div>
+
+                    <!-- Dismiss button if student was already registered -->
+                    <div id="vAlreadyLoggedRow" class="hidden pt-1">
+                        <button onclick="dismissAndResumeScanner()" class="touch-action-btn w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700">
+                            <i class="fa-solid fa-arrow-rotate-right text-emerald-400"></i> إغلاق ومتابعة مسح التلميذ التالي
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Camera Standby Screen -->
+                <div id="cameraStandbyScreen" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center text-center p-4 hidden z-20">
+                    <i class="fa-solid fa-video-slash text-4xl text-slate-500 mb-2"></i>
+                    <p class="text-sm font-bold text-white mb-3">الكاميرا متوقفة</p>
+                    <button onclick="startContinuousScanner()" class="touch-action-btn bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-xs">
+                        <i class="fa-solid fa-play"></i> تشغيل الكاميرا
+                    </button>
+                </div>
+            </div>
+
+            <!-- AUXILIARY ACTION BAR (Zero-HTTPS Phone Photo & Manual Search) -->
+            <div class="grid grid-cols-2 gap-2">
+                <label class="touch-action-btn bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow cursor-pointer text-center">
+                    <i class="fa-solid fa-camera text-emerald-200"></i>
+                    <span>تصوير بطاقة بالكاميرا (بدون HTTPS)</span>
+                    <input type="file" id="directCaptureInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageFileScan(event)">
+                </label>
+
+                <button onclick="toggleQuickManualSearch()" class="touch-action-btn bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold py-2 rounded-xl border border-slate-700 text-xs flex items-center justify-center gap-1.5 shadow">
+                    <i class="fa-solid fa-keyboard text-cyan-400"></i>
+                    <span>بحث / إدخال يدوي</span>
+                </button>
+            </div>
+
+            <!-- Manual Search Dropdown -->
+            <div id="quickManualSearchBox" class="hidden bg-slate-800 rounded-2xl p-3 border border-slate-700 space-y-2">
+                <form onsubmit="handleManualSearchSubmit(event)" class="flex gap-2">
+                    <input type="text" id="manualNameOrId" placeholder="اكتب اسم التلميذ أو المعرف (STU-001)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-emerald-500">
+                    <button type="submit" class="touch-action-btn bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs">
+                        تحقق
+                    </button>
+                </form>
+            </div>
+
+            <!-- Mini Live Ticker (Last Scanned Students) -->
+            <div class="bg-slate-900/80 rounded-2xl p-2.5 border border-slate-800">
+                <div class="flex items-center justify-between mb-1.5 px-1">
+                    <span class="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                        <i class="fa-solid fa-clock-rotate-left text-emerald-400"></i> آخر الحضور المؤكد:
+                    </span>
+                    <button onclick="switchTab('attendanceTab')" class="text-[11px] text-emerald-400 hover:underline font-bold">
+                        عرض السجل اليومي الكامل
+                    </button>
+                </div>
+                <div id="lastThreeScanned" class="space-y-1">
+                    <p class="text-center text-[11px] text-slate-600 py-2">لا توجد عمليات مسح حتى الآن</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: ATTENDANCE LOGS TABLE & EXCEL ================= -->
+        <section id="attendanceTab" class="tab-content hidden space-y-4">
+            <!-- Statistics Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700">
+                    <p class="text-[11px] text-slate-400 font-bold">حضور اليوم المؤكد</p>
+                    <h3 id="statTodayCount" class="text-xl font-black text-emerald-400">0</h3>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700">
+                    <p class="text-[11px] text-slate-400 font-bold">إجمالي التلاميذ</p>
+                    <h3 id="statTotalStudentsCount" class="text-xl font-black text-white">162</h3>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700">
+                    <p class="text-[11px] text-slate-400 font-bold">نسبة الحضور</p>
+                    <h3 id="statAttendancePercent" class="text-xl font-black text-cyan-400">0%</h3>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-2xl border border-slate-700">
+                    <p class="text-[11px] text-slate-400 font-bold">الأفواج</p>
+                    <h3 class="text-xl font-black text-amber-400">4 أقسام</h3>
+                </div>
+            </div>
+
+            <!-- Filter and Export Actions -->
+            <div class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 mb-1">تاريخ الحضور:</label>
+                        <input type="date" id="tableFilterDate" onchange="renderAttendanceTable()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 mb-1">الفوج / القسم:</label>
+                        <select id="tableFilterClass" onchange="renderAttendanceTable()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none">
+                            <option value="ALL">جميع الأقسام</option>
+                            <option value="أولى جذع مشترك علوم 3">أولى جذع مشترك علوم 3</option>
+                            <option value="أولى جذع مشترك علوم 4">أولى جذع مشترك علوم 4</option>
+                            <option value="أولى جذع مشترك علوم 5">أولى جذع مشترك علوم 5</option>
+                            <option value="أولى جذع مشترك أداب 3">أولى جذع مشترك أداب 3</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 mb-1">بحث بالاسم:</label>
+                        <input type="text" id="tableFilterSearch" oninput="renderAttendanceTable()" placeholder="ابحث..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 self-end md:self-center">
+                    <button onclick="exportToCSV()" class="touch-action-btn bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>تصدير Excel (CSV)</span>
+                    </button>
+                    <button onclick="clearCurrentDayLogs()" class="touch-action-btn bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>مسح</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Card -->
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-slate-900 text-slate-300 font-bold border-b border-slate-700">
+                            <tr>
+                                <th class="p-3">#</th>
+                                <th class="p-3">المعرف</th>
+                                <th class="p-3">اسم التلميذ</th>
+                                <th class="p-3">القسم</th>
+                                <th class="p-3">التاريخ</th>
+                                <th class="p-3">وقت الحضور</th>
+                                <th class="p-3 text-center">حالة التحقق</th>
+                                <th class="p-3 text-center">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody" class="divide-y divide-slate-700/60 font-medium text-slate-300">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tableEmptyNotice" class="hidden p-8 text-center text-slate-500">
+                    <i class="fa-solid fa-user-slash text-3xl mb-2"></i>
+                    <p class="font-bold">لا توجد سجلات حضور مسجلة لهذا التاريخ</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: QR PRINTABLE BADGES ================= -->
+        <section id="cardsTab" class="tab-content hidden space-y-4">
+            <div class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex flex-col sm:flex-row gap-2 flex-1 w-full sm:w-auto">
+                    <select id="badgesFilterClass" onchange="renderQrCardsGrid()" class="bg-slate-900 border border-slate-700 font-bold text-white text-xs rounded-xl px-3 py-2.5 outline-none">
+                        <option value="ALL">عرض كل بطاقات التلاميذ (162)</option>
+                        <option value="أولى جذع مشترك علوم 3">أولى جذع مشترك علوم 3</option>
+                        <option value="أولى جذع مشترك علوم 4">أولى جذع مشترك علوم 4</option>
+                        <option value="أولى جذع مشترك علوم 5">أولى جذع مشترك علوم 5</option>
+                        <option value="أولى جذع مشترك أداب 3">أولى جذع مشترك أداب 3</option>
+                    </select>
+                    <input type="text" id="badgesFilterSearch" oninput="renderQrCardsGrid()" placeholder="بحث باسم التلميذ..." class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2.5 outline-none">
+                </div>
+                <button onclick="window.print()" class="touch-action-btn bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow w-full sm:w-auto justify-center">
+                    <i class="fa-solid fa-print"></i>
+                    <span>طباعة بطاقات الـ QR</span>
+                </button>
+            </div>
+
+            <!-- Print Area -->
+            <div id="printArea">
+                <div id="cardsGridContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: STUDENTS DATABASE DIRECTORY ================= -->
+        <section id="studentsTab" class="tab-content hidden space-y-4">
+            <div class="bg-slate-800 p-3.5 rounded-2xl border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex flex-col sm:flex-row gap-2 flex-1 w-full sm:w-auto">
+                    <input type="text" id="studentsSearch" oninput="renderStudentsDirectory()" placeholder="ابحث باسم التلميذ أو المعرف..." class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2.5 outline-none flex-1">
+                    <select id="studentsClassFilter" onchange="renderStudentsDirectory()" class="bg-slate-900 border border-slate-700 font-bold text-white text-xs rounded-xl px-3 py-2.5 outline-none">
+                        <option value="ALL">جميع الأقسام</option>
+                        <option value="أولى جذع مشترك علوم 3">أولى جذع مشترك علوم 3</option>
+                        <option value="أولى جذع مشترك علوم 4">أولى جذع مشترك علوم 4</option>
+                        <option value="أولى جذع مشترك علوم 5">أولى جذع مشترك علوم 5</option>
+                        <option value="أولى جذع مشترك أداب 3">أولى جذع مشترك أداب 3</option>
+                    </select>
+                </div>
+                <button onclick="restoreOfficialRegistry()" class="touch-action-btn bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 border border-slate-600">
+                    <i class="fa-solid fa-rotate-left text-amber-400"></i> استرجاع القوائم الرسمية
+                </button>
+            </div>
+
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-slate-900 text-slate-300 font-bold border-b border-slate-700">
+                            <tr>
+                                <th class="p-3">#</th>
+                                <th class="p-3">المعرف</th>
+                                <th class="p-3">الاسم واللقب</th>
+                                <th class="p-3">تاريخ ومكان الميلاد</th>
+                                <th class="p-3 text-center">الصفة</th>
+                                <th class="p-3 text-center">الإعادة</th>
+                                <th class="p-3">الفوج</th>
+                                <th class="p-3 text-center">كود QR</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentsTableBody" class="divide-y divide-slate-700/60 font-medium text-slate-300"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur border-t border-slate-800 py-1.5 px-3 z-40 no-print">
+        <div class="grid grid-cols-4 gap-1">
+            <button onclick="switchTab('liveScanTab')" id="mob-liveScanTab" class="touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-emerald-400 font-black text-[10px] bg-slate-800">
+                <i class="fa-solid fa-camera text-base"></i>
+                <span>المسح والتحقق</span>
+            </button>
+            <button onclick="switchTab('attendanceTab')" id="mob-attendanceTab" class="touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-slate-400 hover:text-white font-bold text-[10px]">
+                <i class="fa-solid fa-clipboard-check text-base"></i>
+                <span>السجل</span>
+            </button>
+            <button onclick="switchTab('cardsTab')" id="mob-cardsTab" class="touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-slate-400 hover:text-white font-bold text-[10px]">
+                <i class="fa-solid fa-id-card text-base"></i>
+                <span>البطاقات</span>
+            </button>
+            <button onclick="switchTab('studentsTab')" id="mob-studentsTab" class="touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-slate-400 hover:text-white font-bold text-[10px]">
+                <i class="fa-solid fa-users text-base"></i>
+                <span>التلاميذ</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Student Large QR Modal -->
+    <div id="singleModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-xs w-full p-5 text-center shadow-2xl flex flex-col items-center">
+            <h4 id="modalName" class="font-black text-white text-base mb-0.5">اسم التلميذ</h4>
+            <p id="modalClass" class="text-xs font-bold text-emerald-400 mb-3">القسم</p>
+            <div id="modalQrHolder" class="p-3 bg-white rounded-2xl shadow mb-3"></div>
+            <p id="modalCode" class="text-xs font-mono font-bold text-slate-300 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 mb-4">ID</p>
+            <button onclick="closeModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 rounded-xl text-xs transition">إغلاق</button>
+        </div>
+    </div>
+
+    <!-- Web Audio Engine -->
+    <script>
+        let audioContext = null;
+        let isAudioEnabled = true;
+
+        function getAudioCtx() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        function playSoundFeedback(type) {
+            if (!isAudioEnabled) return;
+            try {
+                const ctx = getAudioCtx();
+
+                if (type === 'success') {
+                    // Double Pleasant Confirmation Chime
+                    const now = ctx.currentTime;
+                    const osc1 = ctx.createOscillator();
+                    const osc2 = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(880, now);
+                    osc1.frequency.exponentialRampToValueAtTime(1174.66, now + 0.12);
+
+                    osc2.type = 'triangle';
+                    osc2.frequency.setValueAtTime(1320, now + 0.08);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+                    osc1.connect(gain);
+                    osc2.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc1.stop(now + 0.28);
+                    osc2.start(now + 0.08);
+                    osc2.stop(now + 0.28);
+                } 
+                else if (type === 'cancel' || type === 'wrong-class' || type === 'error') {
+                    // Strong low warning buzzer
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(190, now);
+                    osc.frequency.setValueAtTime(130, now + 0.12);
+
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                }
+                else if (type === 'already-registered') {
+                    // Two quick warning beeps
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(330, now + 0.14);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+                else if (type === 'scan-freeze') {
+                    // Subtle blip indicating code captured & paused
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(900, now + 0.08);
+
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.09);
+                }
+            } catch (e) {
+                console.error("Audio error", e);
+            }
+        }
+
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            const icon = document.getElementById('soundIcon');
+            if (isAudioEnabled) {
+                icon.className = "fa-solid fa-volume-high text-emerald-400";
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-500";
+            }
+        }
+
+        function triggerVibration(pattern) {
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                try {
+                    navigator.vibrate(pattern);
+                } catch(e) {}
+            }
+        }
+    </script>
+
+    <!-- Complete Official Registry of Shaheed Rouam Khelifa (162 Students) -->
+    <script>
+        const OFFICIAL_STUDENTS_LIST = [
+            // ================= أولى جذع مشترك علوم 3 (41) =================
+            { id: "STU-001", name: "امبارك اسماعيل", birth: "09/10/2010الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-002", name: "بلباية رحاب", birth: "01/08/2010 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-003", name: "بلحاج العربي طاهر", birth: "09/01/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-004", name: "بلخوجة هيثم", birth: "17/06/2011الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-005", name: "بلقايد زكرياء", birth: "10/01/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-006", name: "بلمادي فراح", birth: "01/03/2010هرانفة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-007", name: "بن بريك عبد الرحيم", birth: "16/05/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-008", name: "بن حدادة عبدالسميع", birth: "02/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-009", name: "بن حشلاف إيناس", birth: "04/01/2012الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-010", name: "بن داشة يوسف", birth: "10/01/2011 الشلف", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-011", name: "بن سعيد عائشة", birth: "24/02/2012الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-012", name: "بن سيد أحمد خولة", birth: "18/10/2008 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-013", name: "بن سيد أحمد فدوى", birth: "25/11/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-014", name: "بن عيسى أنس", birth: "14/08/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-015", name: "بوباكور خديجة", birth: "31/07/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-016", name: "بوحديبة محمد الأمين", birth: "30/06/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-017", name: "بوحريرة إكرام", birth: "04/05/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-018", name: "بوخبزة أنفال", birth: "29/12/2010 الشلف", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-019", name: "بوريحية عبد الغني", birth: "20/12/2010عين الدفلى", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-020", name: "تواتي أنس", birth: "07/06/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-021", name: "ثولال أنس", birth: "10/09/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-022", name: "ثولال بثينة", birth: "09/04/2011عين الدفلى", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-023", name: "حاج بن عيشوش خولة", birth: "16/10/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-024", name: "خروبي لينة", birth: "12/08/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-025", name: "الخروبي ملاك", birth: "06/12/2010 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-026", name: "خليفة ألاء", birth: "17/10/2011الشلف", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-027", name: "خليفة سنوسي خليل", birth: "25/11/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-028", name: "خليفة صونيا", birth: "21/05/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-029", name: "زوبير سهيلة", birth: "25/08/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-030", name: "زيتوني إيمان", birth: "05/04/2011 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-031", name: "شايب الدور إيناس", birth: "29/07/2012 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-032", name: "طالب خليل", birth: "13/08/2009الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-033", name: "عجال عبد الرحمن", birth: "01/12/2010 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-034", name: "العربي خدة رؤية", birth: "15/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-035", name: "قندوز يوسف", birth: "11/04/2009الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-036", name: "لوركيستي رودينة", birth: "11/10/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-037", name: "مخازني فدوى", birth: "07/02/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-038", name: "منصور سارة", birth: "29/12/2010الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-039", name: "منصور يونس", birth: "14/09/2009 الشلف", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-040", name: "ناجي عبدالله", birth: "22/02/2012بوزغاية", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+            { id: "STU-041", name: "نورين خيرة", birth: "10/03/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 3" },
+
+            // ================= أولى جذع مشترك علوم 4 (40) =================
+            { id: "STU-042", name: "بطاوس محمد", birth: "21/10/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-043", name: "بلقايد عبد الوهاب", birth: "30/08/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-044", name: "بلقايد فاطمة الزهراء", birth: "04/02/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-045", name: "بن باحة ملاك", birth: "15/01/2009 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-046", name: "بن باحة يونس", birth: "06/08/2008 الصبحة", type: "خ", repeat: "س1+1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-047", name: "بن حدادة دعاء", birth: "02/02/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-048", name: "بن سعيد دعاء", birth: "29/08/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-049", name: "بن سعيد مرية", birth: "14/09/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-050", name: "بن سعيد نادية", birth: "29/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-051", name: "بن سيد أحمد إبراهيم الخليل", birth: "09/07/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-052", name: "بن شاعة عبد السلام", birth: "17/01/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-053", name: "بن قارة لؤي", birth: "13/10/2011 عين الدفلى", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-054", name: "بوحديبة ميساء", birth: "06/02/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-055", name: "بوزيادي أسامة", birth: "24/09/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-056", name: "بوغاري خديجة", birth: "05/09/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-057", name: "بوهني الريان", birth: "22/07/2012 وادي رهيو", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-058", name: "حاج بن حليمة هديل", birth: "05/07/2010 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-059", name: "حاج بن عيشوش رتيل", birth: "25/02/2012", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-060", name: "حاج بن عيشوش شيماء", birth: "16/06/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-061", name: "حاج عبد الله العالية", birth: "19/11/2008 الصبحة", type: "ن/د", repeat: "س1+1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-062", name: "حاج عبد الله نسرين", birth: "27/12/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-063", name: "حمدي دعاء", birth: "20/09/2011 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-064", name: "خليفة سنوسي ياسر", birth: "02/05/2010 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-065", name: "خليفة فرح", birth: "20/07/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-066", name: "دحماني ريان", birth: "26/04/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-067", name: "زوبير أسماء", birth: "28/04/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-068", name: "سالم أحلام", birth: "21/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-069", name: "عبدي حسينة", birth: "02/08/2009الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-070", name: "عشوري زوبيدة", birth: "11/10/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-071", name: "عيساوي محمد", birth: "05/04/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-072", name: "عين سمن عبدالباسط", birth: "16/10/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-073", name: "غيدود أحمد", birth: "06/03/2009 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-074", name: "قندوز حمزة", birth: "14/06/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-075", name: "قوجيل زكرياء", birth: "15/05/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-076", name: "لوركيستي إيمان", birth: "31/10/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-077", name: "مباركي أمحمد", birth: "21/05/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-078", name: "مجاجي عبدالمالك", birth: "07/07/2009 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-079", name: "مخطاري إسحاق", birth: "23/07/2011الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-080", name: "معمري ألاء", birth: "19/05/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+            { id: "STU-081", name: "منعوتة كريمة", birth: "01/11/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 4" },
+
+            // ================= أولى جذع مشترك علوم 5 (40) =================
+            { id: "STU-082", name: "بربحة إيناس", birth: "10/10/2011 أولاد زياد", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-083", name: "بربحة يونس", birth: "12/08/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-084", name: "بركوس عبد الإله", birth: "05/10/2009 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-085", name: "بلحاج العربي حمزة", birth: "17/04/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-086", name: "بلحاج بن يحي محمد", birth: "05/11/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-087", name: "بلخوجة مصطفى", birth: "08/04/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-088", name: "بلميهوب جيلالي", birth: "14/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-089", name: "بن بريك رتاج", birth: "08/09/2011 عين الدفلى", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-090", name: "بن سعيد ألاء", birth: "28/06/2011 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-091", name: "بن سعيد إلياس", birth: "30/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-092", name: "بن قارة فاروق", birth: "08/06/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-093", name: "بوخديد محمد الأمين", birth: "26/08/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-094", name: "بوريحية إيمان", birth: "02/09/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-095", name: "بوسدور فرح", birth: "15/02/2011الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-096", name: "بونوة هاجر", birth: "09/10/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-097", name: "جلول خدة يونس", birth: "30/07/2009 الصبحة", type: "ن/د", repeat: "س1+1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-098", name: "حاج بن عيشوش بلقيس", birth: "19/03/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-099", name: "حاج بن عيشوش هاجر", birth: "11/06/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-100", name: "حمادي عبدالرحمان", birth: "19/12/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-101", name: "خلافي فريال", birth: "09/01/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-102", name: "خليفة أمينة", birth: "19/01/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-103", name: "دحماني زكرياء", birth: "27/07/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-104", name: "دحماني صهيب", birth: "14/09/2009الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-105", name: "دحماني عبد الباسط", birth: "03/09/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-106", name: "دريزي رحاب", birth: "08/05/2009 الشطية", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-107", name: "ذهبي سيرين", birth: "08/04/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-108", name: "طاجين دعاء", birth: "23/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-109", name: "عليلي إسراء", birth: "30/12/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-110", name: "عيساوي عبد المالك", birth: "11/07/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-111", name: "فلاحي ملاك", birth: "04/12/2010 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-112", name: "قاني عبد الحفيظ", birth: "12/09/2009 الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-113", name: "قوجيل رانيا", birth: "18/12/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-114", name: "قولالة فدوى", birth: "13/05/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-115", name: "لزعر الحاجة", birth: "04/08/2009الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-116", name: "لوركيستي حليمة", birth: "25/11/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-117", name: "محمد الحاج يونس", birth: "08/07/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-118", name: "مكي فيروز", birth: "13/12/2010 الشلف", type: "خ", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-119", name: "مكي ليندة", birth: "18/03/2010 الصبحة", type: "ن/د", repeat: "س1+س1", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-120", name: "منعوتة ملاك", birth: "23/01/2012 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+            { id: "STU-121", name: "يخلف محمد إسلام", birth: "12/01/2009 عنابة", type: "ن/د", repeat: "", className: "أولى جذع مشترك علوم 5" },
+
+            // ================= أولى جذع مشترك أداب 3 (41) =================
+            { id: "STU-122", name: "براشد حنان", birth: "12/11/2008 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-123", name: "بركات دعاء", birth: "15/10/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-124", name: "بصافي خالد", birth: "17/01/2009", type: "خ", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-125", name: "بن بريك عبدالرحمان", birth: "26/11/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-126", name: "بن رقية بشرى", birth: "23/11/2010", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-127", name: "بن زخروفة سماح", birth: "18/01/2012 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-128", name: "بن سعيد سيرين", birth: "18/08/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-129", name: "بن سيد أحمد سلسبيل", birth: "01/10/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-130", name: "بن سيد أحمد عبير", birth: "24/10/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-131", name: "بن عيدة بشرى", birth: "12/01/2009 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-132", name: "بوبكر ربيحة عبير", birth: "28/11/2009 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-133", name: "بوخديد سلسبيل", birth: "02/09/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-134", name: "بوعدل شهيناز", birth: "11/06/2009الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-135", name: "بوكفلين حفصة", birth: "12/03/2011 الشطية", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-136", name: "بوكفوسة الغول أمينة", birth: "12/01/2009 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-137", name: "ثولال شريهان", birth: "02/10/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-138", name: "حاشي عبد المالك", birth: "30/05/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-139", name: "حمدي زينب", birth: "28/02/2010 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-140", name: "حمدي مروة", birth: "28/02/2010 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-141", name: "خروب بومداح خديجة", birth: "30/05/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-142", name: "خليفة بشرى", birth: "29/01/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-143", name: "خليفة فاطمة الزهرة", birth: "08/11/2009الصبحة", type: "خ", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-144", name: "دحماني محمد عبدالحق", birth: "22/07/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-145", name: "دحو سيد أحمد", birth: "17/01/2012 الشلف", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-146", name: "زوبير رجاء", birth: "07/06/2009 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-147", name: "زيتوني إكرام", birth: "07/02/2012 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-148", name: "سواجل وليد", birth: "06/02/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-149", name: "صبايحية عبد الرزاق", birth: "06/07/2010اولاد فارس", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-150", name: "طاجين نسيبة", birth: "03/11/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-151", name: "طاهر جبار رانيا", birth: "03/12/2010 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-152", name: "عابد عزي بشرى", birth: "03/09/2010الصبحة", type: "ن/د", repeat: "س1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-153", name: "عدة بن قصير هدى", birth: "26/06/2011 مازونة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-154", name: "فغول سارة", birth: "08/05/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-155", name: "قبزال عبد الحليم", birth: "13/07/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-156", name: "لصقع عبد الرحيم", birth: "01/02/2011 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-157", name: "لوركيستي ياسر", birth: "15/01/2010 الصبحة", type: "ن/د", repeat: "س1+1", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-158", name: "مباركي نرمين", birth: "06/07/2010 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-159", name: "مجاهدي مرام", birth: "22/08/2011 عين مران", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-160", name: "مكي دعاء", birth: "25/11/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-161", name: "منصور أنس", birth: "15/01/2011 الصبحة", type: "ن/د", repeat: "", className: "أولى جذع مشترك أداب 3" },
+            { id: "STU-162", name: "نعاس عبدالرحمان", birth: "08/06/2008 الصبحة", type: "خ", repeat: "", className: "أولى جذع مشترك أداب 3" }
+        ];
+
+        // State Variables
+        let studentsList = [];
+        let attendanceRecords = [];
+        let studentPhotosMap = {}; // Maps studentId to base64 or URL
+        let html5QrScanner = null;
+        let isScannerRunning = false;
+        let isScanFrozen = false; // Freeze flag when a student is pending verification
+        let currentCameraFacing = "environment";
+        let bannerResetTimer = null;
+
+        // Pending Student awaiting manual supervisor confirmation
+        let currentPendingStudent = null;
+        let currentPendingScanTime = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadStorage();
+            setupDefaultDates();
+            startContinuousScanner();
+            updateAllCounters();
+        });
+
+        function loadStorage() {
+            const storedStudents = localStorage.getItem('rouam_students_registry_v5');
+            if (storedStudents) {
+                try { studentsList = JSON.parse(storedStudents); } catch(e) { studentsList = [...OFFICIAL_STUDENTS_LIST]; }
+            } else {
+                studentsList = [...OFFICIAL_STUDENTS_LIST];
+                localStorage.setItem('rouam_students_registry_v5', JSON.stringify(studentsList));
+            }
+
+            const storedAttendance = localStorage.getItem('rouam_attendance_records_v5');
+            if (storedAttendance) {
+                try { attendanceRecords = JSON.parse(storedAttendance); } catch(e) { attendanceRecords = []; }
+            } else {
+                attendanceRecords = [];
+            }
+
+            const storedPhotos = localStorage.getItem('rouam_student_photos_v5');
+            if (storedPhotos) {
+                try { studentPhotosMap = JSON.parse(storedPhotos); } catch(e) { studentPhotosMap = {}; }
+            }
+        }
+
+        function setupDefaultDates() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('tableFilterDate');
+            if (dateInput) dateInput.value = today;
+        }
+
+        function getTodayISO() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function getCurrentTimeFormatted() {
+            const d = new Date();
+            return d.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // ================= CAMERA & FREEZE ENGINE =================
+        function startContinuousScanner() {
+            if (isScannerRunning) return;
+
+            document.getElementById('cameraStandbyScreen').classList.add('hidden');
+            document.getElementById('cameraVerificationModal').classList.add('hidden');
+            document.getElementById('reticleLaser').style.display = 'block';
+
+            const qrConfig = {
+                fps: 24,
+                qrbox: (w, h) => {
+                    const min = Math.min(w, h);
+                    const size = Math.floor(min * 0.72);
+                    return { width: size, height: size };
+                },
+                aspectRatio: 1.0,
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+            };
+
+            html5QrScanner = new Html5Qrcode("qr-reader");
+
+            html5QrScanner.start(
+                { facingMode: currentCameraFacing },
+                qrConfig,
+                onQrCodeDetected,
+                () => {} // Silent frame drops
+            ).then(() => {
+                isScannerRunning = true;
+                isScanFrozen = false;
+            }).catch(err => {
+                console.warn("Camera start error (HTTPS or hardware limit):", err);
+                document.getElementById('cameraStandbyScreen').classList.remove('hidden');
+                isScannerRunning = false;
+                displayTopBanner("تنبيه: لتشغيل الكاميرا الحية يلزم اتصال https أو استخدام زر [تصوير بطاقة بالكاميرا] الفوري!", "error");
+            });
+        }
+
+        // Pause/Freeze camera hardware stream immediately upon scan
+        function freezeCameraForVerification() {
+            isScanFrozen = true;
+            playSoundFeedback('scan-freeze');
+
+            // Show verification modal over the camera box directly
+            document.getElementById('cameraVerificationModal').classList.remove('hidden');
+            document.getElementById('reticleLaser').style.display = 'none';
+
+            // Pause Html5QrCode scanner stream silently in background
+            if (html5QrScanner && isScannerRunning) {
+                try {
+                    html5QrScanner.pause(true);
+                } catch(e) {
+                    console.warn("Pause error fallback:", e);
+                }
+            }
+        }
+
+        // Resume scanner stream after supervisor confirmation or cancellation
+        function unfreezeAndResumeCamera() {
+            isScanFrozen = false;
+            currentPendingStudent = null;
+            currentPendingScanTime = null;
+
+            // Hide the overlay popup over the camera
+            document.getElementById('cameraVerificationModal').classList.add('hidden');
+            document.getElementById('reticleLaser').style.display = 'block';
+            resetReticleColors();
+
+            // Resume Html5QrCode stream
+            if (html5QrScanner && isScannerRunning) {
+                try {
+                    html5QrScanner.resume();
+                } catch(e) {
+                    // If resume fails, restart clean
+                    stopContinuousScanner();
+                    setTimeout(startContinuousScanner, 200);
+                }
+            } else if (!isScannerRunning) {
+                startContinuousScanner();
+            }
+
+            displayTopBanner("الكاميرا جاهزة ونشطة الآن.. وجّه الكود لمسح التلميذ التالي", "normal");
+        }
+
+        function stopContinuousScanner() {
+            if (html5QrScanner && isScannerRunning) {
+                html5QrScanner.stop().then(() => {
+                    html5QrScanner.clear();
+                    isScannerRunning = false;
+                    isScanFrozen = false;
+                    document.getElementById('cameraStandbyScreen').classList.remove('hidden');
+                }).catch(e => console.error(e));
+            }
+        }
+
+        function toggleCameraFace() {
+            currentCameraFacing = (currentCameraFacing === "environment") ? "user" : "environment";
+            document.getElementById('facingLabel').textContent = (currentCameraFacing === "environment") ? "الخلفية" : "الأمامية";
+            if (isScannerRunning) {
+                stopContinuousScanner();
+                setTimeout(() => { startContinuousScanner(); }, 300);
+            }
+        }
+
+        // Fallback file capture (Works on all phones without HTTPS)
+        function handleImageFileScan(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const tempEngine = new Html5Qrcode("qr-reader");
+            tempEngine.scanFile(file, true)
+                .then(decodedText => {
+                    onQrCodeDetected(decodedText);
+                    event.target.value = '';
+                })
+                .catch(err => {
+                    triggerErrorVisuals("لم يتم العثور على رمز QR واضح في الصورة الملتقطة!");
+                    event.target.value = '';
+                });
+        }
+
+        // ================= QR DETECTION & VERIFICATION LOGIC =================
+        function onQrCodeDetected(decodedText) {
+            // If already verifying a student, ignore new inputs
+            if (isScanFrozen) return;
+
+            freezeCameraForVerification();
+
+            let searchKey = decodedText.trim();
+            if (searchKey.startsWith('{') && searchKey.endsWith('}')) {
+                try {
+                    const parsed = JSON.parse(searchKey);
+                    if (parsed.id) searchKey = parsed.id;
+                } catch(e) {}
+            }
+
+            const student = studentsList.find(s => 
+                s.id.toLowerCase() === searchKey.toLowerCase() || 
+                s.name.toLowerCase() === searchKey.toLowerCase() ||
+                searchKey.includes(s.id)
+            );
+
+            // CASE 1: UNKNOWN QR CODE
+            if (!student) {
+                triggerErrorVisuals(`⛔ كود غير مسجل: [${searchKey}] غير موجود في قاعدة تلاميذ الثانوية!`);
+                setTimeout(unfreezeAndResumeCamera, 2200);
+                return;
+            }
+
+            currentPendingStudent = student;
+            currentPendingScanTime = getCurrentTimeFormatted();
+
+            const selectedClass = document.getElementById('classroomSelect').value;
+            const today = getTodayISO();
+            const existingRecord = attendanceRecords.find(r => r.studentId === student.id && r.date === today);
+
+            // Populate the active verification card inside camera viewport
+            populateVerificationCard(student, currentPendingScanTime);
+
+            // CASE 2: ALREADY REGISTERED TODAY
+            if (existingRecord) {
+                handleAlreadyRegisteredCase(student, existingRecord);
+                return;
+            }
+
+            // CASE 3: WRONG CLASSROOM (MISMATCH)
+            if (selectedClass !== 'ALL' && student.className !== selectedClass) {
+                handleClassMismatchCase(student, selectedClass);
+                return;
+            }
+
+            // CASE 4: PERFECT MATCH - READY FOR SUPERVISOR CONFIRMATION
+            handleValidMatchCase(student);
+        }
+
+        // ================= POPULATE VERIFICATION MODAL OVER CAMERA =================
+        function populateVerificationCard(student, scanTime) {
+            document.getElementById('vStudentName').textContent = student.name;
+            document.getElementById('vStudentId').textContent = student.id;
+            document.getElementById('vStudentClass').textContent = student.className;
+            document.getElementById('vStudentBirth').textContent = `الميلاد: ${student.birth || 'غير محدد'}`;
+            document.getElementById('vStudentType').textContent = `الصفة: ${student.type || 'ن/د'}`;
+            document.getElementById('vStudentRepeat').textContent = student.repeat ? `الإعادة: ${student.repeat}` : 'مستمر';
+            document.getElementById('vCurrentScanTime').textContent = scanTime;
+
+            // Student Photo handling
+            const photoImg = document.getElementById('vStudentPhotoImg');
+            const photoFallback = document.getElementById('vStudentPhotoFallback');
+            const avatarLetter = document.getElementById('vAvatarLetter');
+
+            if (studentPhotosMap[student.id]) {
+                photoImg.src = studentPhotosMap[student.id];
+                photoImg.classList.remove('hidden');
+                photoFallback.classList.add('hidden');
+            } else {
+                photoImg.classList.add('hidden');
+                photoFallback.classList.remove('hidden');
+                avatarLetter.textContent = student.name.charAt(0);
+            }
+        }
+
+        function handleValidMatchCase(student) {
+            const container = document.getElementById('cameraViewportContainer');
+            container.className = "relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center border-glow-amber";
+
+            const matchTag = document.getElementById('vMatchTag');
+            matchTag.className = "text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+            matchTag.innerHTML = `<i class="fa-solid fa-user-check"></i> تطابق الفوج: ${student.className}`;
+
+            const classBadge = document.getElementById('vStudentClass');
+            classBadge.className = "text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40";
+
+            document.getElementById('vWarningNoticeBox').classList.add('hidden');
+            document.getElementById('vActionButtonsRow').classList.remove('hidden');
+            document.getElementById('vAlreadyLoggedRow').classList.add('hidden');
+
+            displayTopBanner(`تم التقاط بطاقة [${student.name}]. اضغط تم للتأكيد أو إلغاء في النافذة المنبثقة`, "warning");
+        }
+
+        function handleClassMismatchCase(student, expectedClass) {
+            playSoundFeedback('wrong-class');
+            triggerVibration([180, 80, 180]);
+            triggerFlash('red');
+
+            const container = document.getElementById('cameraViewportContainer');
+            container.className = "relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center border-glow-red";
+
+            const matchTag = document.getElementById('vMatchTag');
+            matchTag.className = "text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-red-500/20 text-red-300 border border-red-500/40";
+            matchTag.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> خطأ: تلميذ من فوج آخر!`;
+
+            const classBadge = document.getElementById('vStudentClass');
+            classBadge.className = "text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-lg bg-red-950/90 text-red-300 border-2 border-red-500";
+
+            const noticeBox = document.getElementById('vWarningNoticeBox');
+            noticeBox.className = "rounded-xl p-2 text-[11px] font-bold border bg-red-950/80 border-red-500 text-red-200 flex items-center gap-2";
+            noticeBox.innerHTML = `
+                <i class="fa-solid fa-triangle-exclamation text-base text-red-400 shrink-0"></i>
+                <span>تنبيه: التلميذ ينتمي لقسم <strong>(${student.className})</strong> بينما الفوج المختار هو <strong>(${expectedClass})</strong>!</span>
+            `;
+            noticeBox.classList.remove('hidden');
+
+            document.getElementById('vActionButtonsRow').classList.remove('hidden');
+            document.getElementById('vAlreadyLoggedRow').classList.add('hidden');
+
+            displayTopBanner(`⛔ تنبيه: التلميذ [${student.name}] ينتمي إلى ${student.className} وليس الفوج المحدد!`, "error");
+        }
+
+        function handleAlreadyRegisteredCase(student, record) {
+            playSoundFeedback('already-registered');
+            triggerVibration([150, 70, 150]);
+            triggerFlash('red');
+
+            const container = document.getElementById('cameraViewportContainer');
+            container.className = "relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center border-glow-red";
+
+            const matchTag = document.getElementById('vMatchTag');
+            matchTag.className = "text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40";
+            matchTag.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> مسجل مسبقاً اليوم`;
+
+            const noticeBox = document.getElementById('vWarningNoticeBox');
+            noticeBox.className = "rounded-xl p-2 text-[11px] font-bold border bg-amber-950/80 border-amber-500 text-amber-200 flex items-center gap-2";
+            noticeBox.innerHTML = `
+                <i class="fa-solid fa-circle-exclamation text-base text-amber-400 shrink-0"></i>
+                <span>التلميذ <strong>[${student.name}]</strong> مسجل مسبقاً اليوم في الساعة <strong>(${record.time})</strong>!</span>
+            `;
+            noticeBox.classList.remove('hidden');
+
+            document.getElementById('vActionButtonsRow').classList.add('hidden');
+            document.getElementById('vAlreadyLoggedRow').classList.remove('hidden');
+
+            displayTopBanner(`⚠️ التلميذ [${student.name}] مسجل من قبل في الساعة ${record.time}!`, "warning");
+        }
+
+        // ================= SUPERVISOR ACTIONS: CONFIRM (تم) OR CANCEL (إلغاء) =================
+
+        // 1. CONFIRM (تم) -> Record Attendance, chime sound, green flash, update counters, resume camera
+        function confirmStudentAttendance() {
+            if (!currentPendingStudent) return;
+
+            const student = currentPendingStudent;
+            const timeStr = currentPendingScanTime || getCurrentTimeFormatted();
+            const today = getTodayISO();
+
+            const newRecord = {
+                id: 'REC-' + Date.now(),
+                studentId: student.id,
+                studentName: student.name,
+                className: student.className,
+                date: today,
+                time: timeStr,
+                status: 'حاضر (مؤكد)'
+            };
+
+            attendanceRecords.unshift(newRecord);
+            localStorage.setItem('rouam_attendance_records_v5', JSON.stringify(attendanceRecords));
+
+            playSoundFeedback('success');
+            triggerVibration([80, 50, 80]);
+            triggerFlash('green');
+
+            displayTopBanner(`✅ تم تأكيد حضور التلميذ بنجاح: ${student.name} | الساعة: ${timeStr}`, "success");
+
+            updateAllCounters();
+            updateLastThreeTicker();
+
+            // Resume Camera to scan next student smoothly
+            unfreezeAndResumeCamera();
+        }
+
+        // 2. CANCEL (إلغاء / ليس صاحب البطاقة) -> Do not record, red flash, cancel alert, resume camera
+        function cancelStudentAttendance() {
+            if (!currentPendingStudent) return;
+
+            const studentName = currentPendingStudent.name;
+
+            playSoundFeedback('cancel');
+            triggerVibration([250]);
+            triggerFlash('red');
+
+            displayTopBanner(`❌ تم إلغاء التسجيل: [${studentName}] - لم يتم تأكيد هوية حامل البطاقة`, "error");
+
+            // Resume camera immediately
+            unfreezeAndResumeCamera();
+        }
+
+        function dismissAndResumeScanner() {
+            unfreezeAndResumeCamera();
+        }
+
+        // Custom Photo Upload for the current student
+        function uploadStudentPhoto(event) {
+            const file = event.target.files[0];
+            if (!file || !currentPendingStudent) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result;
+                studentPhotosMap[currentPendingStudent.id] = base64Data;
+                localStorage.setItem('rouam_student_photos_v5', JSON.stringify(studentPhotosMap));
+
+                const photoImg = document.getElementById('vStudentPhotoImg');
+                const photoFallback = document.getElementById('vStudentPhotoFallback');
+                photoImg.src = base64Data;
+                photoImg.classList.remove('hidden');
+                photoFallback.classList.add('hidden');
+
+                displayTopBanner(`تم حفظ صورة التلميذ [${currentPendingStudent.name}] بنجاح`, "success");
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Visual flash helpers
+        function triggerFlash(color) {
+            const el = document.getElementById('screenFlash');
+            el.className = `fixed inset-0 pointer-events-none z-50 flash-${color}`;
+            setTimeout(() => { el.className = "fixed inset-0 pointer-events-none z-50"; }, 700);
+        }
+
+        function resetReticleColors() {
+            const container = document.getElementById('cameraViewportContainer');
+            container.className = "relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-700 transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center";
+        }
+
+        function triggerErrorVisuals(msg) {
+            playSoundFeedback('error');
+            triggerVibration([200, 100, 200]);
+            triggerFlash('red');
+
+            const container = document.getElementById('cameraViewportContainer');
+            container.className = "relative w-full bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-glow-red transition-all duration-300 min-h-[290px] sm:min-h-[340px] flex items-center justify-center";
+
+            displayTopBanner(msg, "error");
+        }
+
+        function displayTopBanner(msg, type) {
+            const banner = document.getElementById('cameraTopBanner');
+            clearTimeout(bannerResetTimer);
+
+            banner.classList.remove('shake-banner', 'bg-slate-800', 'border-slate-700', 'bg-emerald-700', 'border-emerald-400', 'bg-red-700', 'border-red-400', 'bg-amber-600', 'border-amber-300', 'text-white', 'text-slate-300');
+
+            if (type === 'success') {
+                banner.className = "w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border-2 shadow-lg bg-emerald-700 border-emerald-400 text-white";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                        <i class="fa-solid fa-circle-check text-lg text-emerald-200 shrink-0"></i>
+                        <span>${msg}</span>
+                    </div>
+                `;
+            } else if (type === 'error') {
+                banner.className = "w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border-2 shadow-lg bg-red-700 border-red-400 text-white shake-banner";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                        <i class="fa-solid fa-circle-xmark text-lg text-red-200 shrink-0"></i>
+                        <span>${msg}</span>
+                    </div>
+                `;
+            } else if (type === 'warning') {
+                banner.className = "w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border-2 shadow-lg bg-amber-600 border-amber-300 text-white shake-banner";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                        <i class="fa-solid fa-triangle-exclamation text-lg text-amber-200 shrink-0"></i>
+                        <span>${msg}</span>
+                    </div>
+                `;
+            } else {
+                banner.className = "w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border shadow-lg bg-slate-800 border-slate-700 text-slate-300";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                        <i class="fa-solid fa-bullseye text-emerald-400 animate-pulse text-base"></i>
+                        <span>${msg}</span>
+                    </div>
+                `;
+            }
+
+            bannerResetTimer = setTimeout(() => {
+                banner.className = "w-full min-h-[54px] sm:min-h-[60px] rounded-2xl flex items-center justify-center p-2.5 text-center transition-all duration-300 border shadow-lg bg-slate-800 border-slate-700 text-slate-300";
+                banner.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs sm:text-sm font-black tracking-wide">
+                        <i class="fa-solid fa-bullseye text-emerald-400 animate-pulse text-base"></i>
+                        <span>وجّه الكاميرا نحو بطاقة الـ QR.. سيتوقف المسح فوراً للتحقق من هوية التلميذ</span>
+                    </div>
+                `;
+            }, 4500);
+        }
+
+        function updateLastThreeTicker() {
+            const today = getTodayISO();
+            const logs = attendanceRecords.filter(r => r.date === today).slice(0, 3);
+            const container = document.getElementById('lastThreeScanned');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="text-center text-[11px] text-slate-600 py-2">لا توجد عمليات مسح حتى الآن</p>';
+                return;
+            }
+
+            container.innerHTML = logs.map(l => `
+                <div class="flex items-center justify-between p-1.5 bg-slate-800/80 rounded-xl border border-slate-700 text-xs">
+                    <div class="flex items-center gap-2 truncate">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span class="font-bold text-white truncate">${l.studentName}</span>
+                        <span class="text-[10px] text-slate-400 truncate">(${l.className})</span>
+                    </div>
+                    <span class="font-mono text-[10px] font-bold text-emerald-400 bg-slate-900 px-2 py-0.5 rounded">${l.time}</span>
+                </div>
+            `).join('');
+        }
+
+        function toggleQuickManualSearch() {
+            document.getElementById('quickManualSearchBox').classList.toggle('hidden');
+        }
+
+        function handleManualSearchSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('manualNameOrId');
+            const q = input.value.trim();
+            if (!q) return;
+
+            onQrCodeDetected(q);
+            input.value = '';
+            toggleQuickManualSearch();
+        }
+
+        function onClassFilterChange() {
+            const val = document.getElementById('classroomSelect').value;
+            if (val === 'ALL') {
+                displayTopBanner("تم ضبط النظام: مفتوح لجميع الأفواج الأربعة بدون تقييد", "success");
+            } else {
+                displayTopBanner(`تم تقييد الحضور الصارم بقسم: ${val}`, "warning");
+            }
+        }
+
+        // ================= NAVIGATION & TABS =================
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('block');
+            });
+            const target = document.getElementById(tabId);
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('block');
+            }
+
+            // Desktop tabs
+            document.querySelectorAll('.nav-tab').forEach(b => {
+                b.className = "nav-tab px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2";
+            });
+            const deskBtn = document.getElementById(`desk-${tabId}`);
+            if (deskBtn) deskBtn.className = "nav-tab px-4 py-2 rounded-xl transition flex items-center gap-2 bg-emerald-600 text-white shadow-sm font-bold";
+
+            // Mobile tabs
+            ['liveScanTab', 'attendanceTab', 'cardsTab', 'studentsTab'].forEach(t => {
+                const mobBtn = document.getElementById(`mob-${t}`);
+                if (mobBtn) {
+                    if (t === tabId) {
+                        mobBtn.className = "touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-emerald-400 font-black text-[10px] bg-slate-800";
+                    } else {
+                        mobBtn.className = "touch-action-btn flex flex-col items-center gap-1 py-1 rounded-xl text-slate-400 hover:text-white font-bold text-[10px]";
+                    }
+                }
+            });
+
+            if (tabId === 'attendanceTab') renderAttendanceTable();
+            else if (tabId === 'cardsTab') renderQrCardsGrid();
+            else if (tabId === 'studentsTab') renderStudentsDirectory();
+        }
+
+        function updateAllCounters() {
+            const today = getTodayISO();
+            const todayLogs = attendanceRecords.filter(r => r.date === today);
+            const count = studentsList.length;
+
+            document.getElementById('deskAttendanceCount').textContent = todayLogs.length;
+            document.getElementById('sessionCountNum').textContent = todayLogs.length;
+            document.getElementById('statTodayCount').textContent = todayLogs.length;
+            document.getElementById('statTotalStudentsCount').textContent = count;
+
+            const rate = count > 0 ? Math.round((todayLogs.length / count) * 100) : 0;
+            document.getElementById('statAttendancePercent').textContent = `${rate}%`;
+        }
+
+        // ================= ATTENDANCE TABLE & CSV =================
+        function renderAttendanceTable() {
+            const dateVal = document.getElementById('tableFilterDate').value;
+            const classVal = document.getElementById('tableFilterClass').value;
+            const q = document.getElementById('tableFilterSearch').value.trim().toLowerCase();
+            const tbody = document.getElementById('attendanceTableBody');
+            const notice = document.getElementById('tableEmptyNotice');
+
+            let filtered = attendanceRecords.filter(r => {
+                const mDate = (!dateVal || r.date === dateVal);
+                const mClass = (classVal === 'ALL' || r.className === classVal);
+                const mSearch = (!q || r.studentName.toLowerCase().includes(q) || r.studentId.toLowerCase().includes(q));
+                return mDate && mClass && mSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                notice.classList.remove('hidden');
+                return;
+            }
+
+            notice.classList.add('hidden');
+            tbody.innerHTML = filtered.map((rec, i) => `
+                <tr class="hover:bg-slate-750 transition">
+                    <td class="p-3 text-slate-400 font-bold">${i + 1}</td>
+                    <td class="p-3 font-mono text-emerald-400 font-bold">${rec.studentId}</td>
+                    <td class="p-3 font-black text-white">${rec.studentName}</td>
+                    <td class="p-3 text-slate-300">${rec.className}</td>
+                    <td class="p-3 font-mono text-slate-400">${rec.date}</td>
+                    <td class="p-3 font-mono text-emerald-400 font-bold">${rec.time}</td>
+                    <td class="p-3 text-center">
+                        <span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            <i class="fa-solid fa-check text-[9px]"></i> مؤكد
+                        </span>
+                    </td>
+                    <td class="p-3 text-center">
+                        <button onclick="deleteRecord('${rec.id}')" class="text-rose-400 hover:text-rose-300 p-1">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function deleteRecord(id) {
+            attendanceRecords = attendanceRecords.filter(r => r.id !== id);
+            localStorage.setItem('rouam_attendance_records_v5', JSON.stringify(attendanceRecords));
+            renderAttendanceTable();
+            updateAllCounters();
+            updateLastThreeTicker();
+        }
+
+        function clearCurrentDayLogs() {
+            const dateVal = document.getElementById('tableFilterDate').value;
+            if (!dateVal) return;
+            if (confirm(`هل أنت متأكد من مسح سجلات حضور يوم: ${dateVal}؟`)) {
+                attendanceRecords = attendanceRecords.filter(r => r.date !== dateVal);
+                localStorage.setItem('rouam_attendance_records_v5', JSON.stringify(attendanceRecords));
+                renderAttendanceTable();
+                updateAllCounters();
+                updateLastThreeTicker();
+            }
+        }
+
+        function exportToCSV() {
+            const dateVal = document.getElementById('tableFilterDate').value || getTodayISO();
+            const rows = attendanceRecords.filter(r => r.date === dateVal);
+
+            if (rows.length === 0) {
+                alert("لا توجد سجلات حضور مسجلة لهذا اليوم للتصدير");
+                return;
+            }
+
+            let csv = "\uFEFF"; // Arabic BOM
+            csv += "الرقم,المعرف,الاسم واللقب,الفوج,التاريخ,الوقت,الحالة\n";
+            rows.forEach((r, idx) => {
+                csv += `"${idx + 1}","${r.studentId}","${r.studentName}","${r.className}","${r.date}","${r.time}","${r.status}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `حضور_ثانوية_روام_خليفة_${dateVal}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // ================= QR CARDS PRINTING =================
+        function renderQrCardsGrid() {
+            const classFilter = document.getElementById('badgesFilterClass').value;
+            const search = document.getElementById('badgesFilterSearch').value.trim().toLowerCase();
+            const grid = document.getElementById('cardsGridContainer');
+
+            let filtered = studentsList.filter(s => {
+                const mClass = (classFilter === 'ALL' || s.className === classFilter);
+                const mSearch = (!search || s.name.toLowerCase().includes(search) || s.id.toLowerCase().includes(search));
+                return mClass && mSearch;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="col-span-full p-8 text-center text-slate-500 font-bold">لا توجد بطاقات مطابقة</div>';
+                return;
+            }
+
+            grid.innerHTML = '';
+
+            filtered.forEach(student => {
+                const card = document.createElement('div');
+                card.className = "bg-white text-slate-900 rounded-2xl p-3 border-2 border-slate-300 shadow flex flex-col justify-between break-inside-avoid";
+
+                card.innerHTML = `
+                    <div class="text-center pb-1.5 border-b border-slate-200">
+                        <span class="text-[9px] font-bold text-slate-500 block">ثانوية الشهيد روام خليفة - الصبحة</span>
+                        <h4 class="font-black text-xs text-slate-900 truncate mt-0.5">${student.name}</h4>
+                        <span class="inline-block bg-slate-900 text-white text-[9px] font-bold px-2 py-0.5 rounded-full mt-0.5">
+                            ${student.className}
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-center my-2">
+                        <div id="badge-qr-${student.id}" class="p-1 border border-slate-300 rounded-xl bg-white"></div>
+                    </div>
+
+                    <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[9px] text-slate-600 font-mono">
+                        <span class="font-bold text-slate-900">${student.id}</span>
+                        <span>${student.birth ? student.birth.substring(0, 10) : ''}</span>
+                        <button onclick="openModal('${student.id}')" class="text-emerald-700 font-bold no-print">تكبير</button>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+
+                setTimeout(() => {
+                    const el = document.getElementById(`badge-qr-${student.id}`);
+                    if (el) {
+                        el.innerHTML = '';
+                        new QRCode(el, {
+                            text: student.id,
+                            width: 88,
+                            height: 88,
+                            colorDark: "#0f172a",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                    }
+                }, 10);
+            });
+        }
+
+        // ================= STUDENTS DIRECTORY =================
+        function renderStudentsDirectory() {
+            const q = document.getElementById('studentsSearch').value.trim().toLowerCase();
+            const classFilter = document.getElementById('studentsClassFilter').value;
+            const tbody = document.getElementById('studentsTableBody');
+
+            let filtered = studentsList.filter(s => {
+                const mClass = (classFilter === 'ALL' || s.className === classFilter);
+                const mSearch = (!q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || (s.birth && s.birth.toLowerCase().includes(q)));
+                return mClass && mSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا يوجد تلاميذ مطابقون</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((s, idx) => `
+                <tr class="hover:bg-slate-750 transition border-b border-slate-700/60">
+                    <td class="p-3 text-slate-400 font-bold">${idx + 1}</td>
+                    <td class="p-3 font-mono text-emerald-400 font-bold">${s.id}</td>
+                    <td class="p-3 font-black text-white">${s.name}</td>
+                    <td class="p-3 text-slate-300">${s.birth || '—'}</td>
+                    <td class="p-3 text-center"><span class="bg-slate-900 border border-slate-700 px-2 py-0.5 rounded text-[10px] font-bold text-slate-300">${s.type || 'ن/د'}</span></td>
+                    <td class="p-3 text-center text-amber-400 font-bold">${s.repeat || '—'}</td>
+                    <td class="p-3 text-slate-300 font-bold">${s.className}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="openModal('${s.id}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-lg text-xs font-bold transition">
+                            <i class="fa-solid fa-qrcode"></i> عرض
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function restoreOfficialRegistry() {
+            if (confirm("هل تريد استعادة القوائم الرسمية الأصلية لثانوية روام خليفة (162 تلميذاً عبر الأقسام الأربعة)؟")) {
+                studentsList = [...OFFICIAL_STUDENTS_LIST];
+                localStorage.setItem('rouam_students_registry_v5', JSON.stringify(studentsList));
+                updateAllCounters();
+                renderStudentsDirectory();
+                renderQrCardsGrid();
+                displayTopBanner("تمت استعادة القوائم الرسمية (162 تلميذاً) بنجاح", "success");
+            }
+        }
+
+        function openModal(id) {
+            const s = studentsList.find(i => i.id === id);
+            if (!s) return;
+            document.getElementById('modalName').textContent = s.name;
+            document.getElementById('modalClass').textContent = s.className;
+            document.getElementById('modalCode').textContent = `الرقم: ${s.id}`;
+
+            const holder = document.getElementById('modalQrHolder');
+            holder.innerHTML = '';
+            new QRCode(holder, {
+                text: s.id,
+                width: 150,
+                height: 150,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('singleModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('singleModal').classList.add('hidden');
+        }
+
+        function quickBackupData() {
+            const data = {
+                institution: "ثانوية الشهيد روام خليفة - الصبحة",
+                timestamp: new Date().toISOString(),
+                students: studentsList,
+                attendance: attendanceRecords,
+                photos: studentPhotosMap
+            };
+            const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const dl = document.createElement('a');
+            dl.href = jsonStr;
+            dl.download = `نسخة_احتياطية_روام_خليفة_${getTodayISO()}.json`;
+            dl.click();
+        }
+    </script>
+</body>
+</html>
